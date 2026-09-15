@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "packs": [
+    {
+      "id": "ph-street-v1",
+      "countryCode": "PH",
+      "kind": "street",
+      "file": "SANGGA-PH-nationwide-street-v1.pmtiles",
+      "bytes": 307117688,
+      "sha256": "45e0363130a22e3de3f0e6263834975108b692bd0436a4dcce280920ee500589",
+      "bounds": [116.8, 4.4, 126.7, 21.5],
+      "minZoom": 0,
+      "maxZoom": 14,
+      "sourceDate": "2026-09-13"
+    },
+    {
+      "id": "ph-terrain-v1",
+      "countryCode": "PH",
+      "kind": "terrain",
+      "file": "SANGGA-PH-nationwide-terrain-v1.pmtiles",
+      "bytes": 586727065,
+      "sha256": "b273d14a0e5e2cfcea7643fa7c2e7ce32ef52f2d26f6cb1e4714793b276ecc9e",
+      "bounds": [116.8, 4.4, 126.7, 21.5],
+      "minZoom": 0,
+      "maxZoom": 12,
+      "sourceDate": "2026-09"
+    }
+  ]
+}
