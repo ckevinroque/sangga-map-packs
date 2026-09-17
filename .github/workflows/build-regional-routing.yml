@@ -1,0 +1,124 @@
+name: Build regional offline routing packs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.code }} routing
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - code: PH
+            bbox: 120.4,13.6,122.2,15.7
+            sources: https://download.geofabrik.de/asia/philippines-latest.osm.pbf
+          - code: US
+            bbox: -78.2,37.8,-75.6,39.9
+            sources: https://download.geofabrik.de/north-america/us/virginia-latest.osm.pbf https://download.geofabrik.de/north-america/us/maryland-latest.osm.pbf https://download.geofabrik.de/north-america/us/district-of-columbia-latest.osm.pbf
+          - code: CA
+            bbox: -80.5,42.5,-78.0,44.8
+            sources: https://download.geofabrik.de/north-america/canada-latest.osm.pbf
+          - code: AU
+            bbox: 149.7,-34.5,152.0,-32.6
+            sources: https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf
+          - code: NZ
+            bbox: 174.3,-38.2,176.2,-36.3
+            sources: https://download.geofabrik.de/australia-oceania/new-zealand-latest.osm.pbf
+          - code: JP
+            bbox: 138.5,34.8,141.0,36.8
+            sources: https://download.geofabrik.de/asia/japan-latest.osm.pbf
+
+    steps:
+      - name: Install OSM tools
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends osmium-tool
+
+      - name: Download and extract regional OpenStreetMap data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/source
+          index=0
+          for url in ${{ matrix.sources }}; do
+            index=$((index + 1))
+            curl --fail --location --retry 4 --output "work/source/$index.osm.pbf" "$url"
+          done
+          if [ "$index" -eq 1 ]; then
+            source_file="work/source/1.osm.pbf"
+          else
+            osmium merge work/source/*.osm.pbf --overwrite -o work/source/merged.osm.pbf
+            source_file="work/source/merged.osm.pbf"
+          fi
+          osmium extract --strategy complete_ways --bbox "${{ matrix.bbox }}" \
+            "$source_file" --overwrite -o work/region.osm.pbf
+          osmium fileinfo -e work/region.osm.pbf
+          rm -rf work/source
+
+      - name: Build Valhalla 3.6.3 graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/tiles
+          docker run --rm -v "$PWD/work:/work" -w /work \
+            ghcr.io/valhalla/valhalla:3.6.3 \
+            valhalla_build_config \
+              --mjolnir-tile-dir /work/tiles \
+              --mjolnir-tile-extract /work/tiles.tar \
+              > work/valhalla.json
+          docker run --rm -v "$PWD/work:/work" -w /work \
+            ghcr.io/valhalla/valhalla:3.6.3 bash -c \
+            "valhalla_build_tiles -c /work/valhalla.json /work/region.osm.pbf && valhalla_build_extract -c /work/valhalla.json"
+          test -s work/tiles.tar
+          tar -tf work/tiles.tar | grep -q '\.gph$'
+
+      - name: Package and record integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="SANGGA-${{ matrix.code }}-regional-routing-v1.tar.gz"
+          gzip -9 -n -c work/tiles.tar > "$output"
+          sha256sum "$output" > "$output.sha256"
+          printf '%s|%s|%s|%s\n' \
+            "$output" \
+            "$(stat -c %s "$output")" \
+            "$(stat -c %s work/tiles.tar)" \
+            "$(sha256sum "$output" | cut -d ' ' -f 1)" \
+            > "SANGGA-${{ matrix.code }}-regional-routing-v1.metadata"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: routing-${{ matrix.code }}
+          path: |
+            SANGGA-${{ matrix.code }}-regional-routing-v1.tar.gz
+            SANGGA-${{ matrix.code }}-regional-routing-v1.tar.gz.sha256
+            SANGGA-${{ matrix.code }}-regional-routing-v1.metadata
+          compression-level: 0
+          retention-days: 1
+
+  publish:
+    name: Publish verified routing packs
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: routing-*
+          merge-multiple: true
+          path: release
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view routing-v1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create routing-v1 --repo "$GITHUB_REPOSITORY" \
+              --title "SANGGA regional offline routing v1" \
+              --notes "Valhalla 3.6.3 regional walking, cycling, motorcycle, and driving graphs generated from OpenStreetMap/Geofabrik data."
+          gh release upload routing-v1 release/* --repo "$GITHUB_REPOSITORY" --clobber
+
