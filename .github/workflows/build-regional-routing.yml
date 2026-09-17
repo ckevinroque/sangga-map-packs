@@ -23,7 +23,7 @@ jobs:
             sources: https://download.geofabrik.de/north-america/us/virginia-latest.osm.pbf https://download.geofabrik.de/north-america/us/maryland-latest.osm.pbf https://download.geofabrik.de/north-america/us/district-of-columbia-latest.osm.pbf
           - code: CA
             bbox: -80.5,42.5,-78.0,44.8
-            sources: https://download.geofabrik.de/north-america/canada-latest.osm.pbf
+            sources: https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
           - code: AU
             bbox: 149.7,-34.5,152.0,-32.6
             sources: https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf
