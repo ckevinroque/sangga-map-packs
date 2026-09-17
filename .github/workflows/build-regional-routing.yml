@@ -72,7 +72,9 @@ jobs:
               > work/valhalla.json
           docker run --rm -v "$PWD/work:/work" -w /work \
             ghcr.io/valhalla/valhalla:3.6.3 bash -c \
-            "valhalla_build_tiles -c /work/valhalla.json /work/region.osm.pbf && valhalla_build_extract -c /work/valhalla.json"
+            "valhalla_build_tiles -c /work/valhalla.json /work/region.osm.pbf"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 \
+            --numeric-owner -cf work/tiles.tar -C work/tiles .
           test -s work/tiles.tar
           tar -tf work/tiles.tar | grep -q '\.gph$'
 
@@ -121,4 +123,3 @@ jobs:
               --title "SANGGA regional offline routing v1" \
               --notes "Valhalla 3.6.3 regional walking, cycling, motorcycle, and driving graphs generated from OpenStreetMap/Geofabrik data."
           gh release upload routing-v1 release/* --repo "$GITHUB_REPOSITORY" --clobber
-
